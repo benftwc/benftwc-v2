@@ -1,0 +1,297 @@
+<?php
+
+function smg_fake_content_init() {
+  if (function_exists('drush_log')) {
+    require __DIR__ . '/vendor/autoload.php';
+  }
+}
+
+/*
+ * Import fake content into smg drupal's instance
+ * Call it with:
+ * $ drush ev "smg_fake_content_import();"
+ */
+function smg_fake_content_import($file = '') {
+  if (!preg_match('/[a-z_-]+/', $file)) {
+    return "wrong filename";
+  }
+  $file = __DIR__ . '/' . $file . '.yml';
+  $loader = Symfony\Component\Yaml\Yaml::parse($file);
+  var_dump($loader);
+
+  _smg_fake_content_do_import($loader);
+}
+
+function _smg_fake_content_do_import($data) {
+  if (isset($data['variables'])) {
+    smg_fake_content_variables($data['variables']);
+  }
+  if (!isset($data['content'])) {
+    return;
+  }
+
+  foreach($data['content'] as $key => $content) {
+    $function_name = sprintf('smg_fake_content_create_%s_%s',$content['type'], $content['bundle']);
+    if (function_exists($function_name)) {
+      $content['_nid'] = isset($data['_nid']) ? $data['_nid'] : null;
+      $content['_entity_id'] = isset($data['_entity_id']) ? $data['_entity_id'] : null;
+      $content['_avis_id'] = isset($data['_avis_id']) ? $data['_avis_id'] : null;
+      $function_name($content, $key);
+    }
+    else {
+      echo sprintf("no importer for %s\n", $function_name);
+    }
+  }
+}
+
+function _smg_fake_content_mapping($key, $value = null) {
+  static $values;
+
+  if (isset($value)) {
+    $values[$key] = $value;
+  }
+
+  return $values[$key];
+}
+
+function smg_fake_content_variables($values) {
+  foreach($values as $key => $val) {
+    variable_set($key, $val);
+  }
+}
+
+function smg_fake_content_create_node_smg_debat($values, $key) {
+
+  $values = array(
+    'type'                    => 'smg_debat',
+    'title'                   => $values['title'],
+    'uid'                     => isset($values['uid']) ? $values['uid'] : 1,
+    'language'                => 'und',
+    'body'                    => array('value' =>$values['body'], 'format' => "wysiwyg_contributor"),
+    'field_smg_open_date'  => (new DateTime($values['date_debut']))->getTimestamp(),
+    'field_smg_end_date'  => (new DateTime($values['date_fin']))->getTimestamp(),
+  ) + $values;
+  $entity = entity_property_values_create_entity('node', $values);
+
+  if (isset($values['theme'])) {
+    $entity->field_smg_themes->set(array(intval(_smg_fake_content_mapping($values['theme']))));
+  }
+
+  $entity->save();
+
+  $values['_nid'] = $entity->nid->value();
+  _smg_fake_content_mapping($key, $values['_nid']);
+  _smg_fake_content_do_import($values);
+  return $values['_nid'];
+}
+
+function smg_fake_content_create_node_article($values, $key) {
+
+  $values = array(
+    'type'                    => 'article',
+    'title'                   => $values['title'],
+    'uid'                     => isset($values['uid']) ? $values['uid'] : 1,
+    'language'                => 'und',
+    'field_smg_machine_name'  => $values['machine_name'],
+    'body'                    => array('value' =>$values['body'], 'format' => "wysiwyg_contributor"),
+  ) + $values;
+
+  if (!isset($values['no_menu'])) {
+      $parent = isset($values['menu_parent']) ? $values['menu_parent'] : 'main-menu_lquipe:<firstchild>';
+      $pid = (db_query("select mlid from {menu_links} where options like '%" . $parent . "%'")->fetchField());
+      $values['menu'] = array(
+            'link_title' => $values['title'],
+            'menu_name' => 'main-menu',
+            'plid' => isset($pid) ? $pid : 0,
+            'enabled' => 1,
+      );
+  }
+
+  $entity = entity_property_values_create_entity('node', $values);
+  $entity->save();
+
+  $values['_nid'] = $entity->nid->value();
+  _smg_fake_content_mapping($key, $values['_nid']);
+  _smg_fake_content_do_import($values);
+  return $values['_nid'];
+}
+
+function smg_fake_content_create_node_event($values, $key) {
+
+  $values = array(
+    'type'                    => 'event',
+    'title'                   => $values['title'],
+    'uid'                     => isset($values['uid']) ? $values['uid'] : 1,
+    'language'                => 'und',
+    'body'                    => array('value' =>$values['body'], 'format' => "wysiwyg_contributor"),
+    'field_event_date'  => array(array('value' => $values['event_date'], 'value2' => $values['event_date'])),
+  ) + $values;
+
+
+  $entity = entity_property_values_create_entity('node', $values);
+  $entity->save();
+
+  $values['_nid'] = $entity->nid->value();
+  _smg_fake_content_mapping($key, $values['_nid']);
+  _smg_fake_content_do_import($values);
+  return $values['_nid'];
+}
+
+
+function smg_fake_content_create_node_smg_homepage($values, $key) {
+
+  $values = array(
+    'type'                    => 'smg_homepage',
+    'title'                   => $values['title'],
+    'uid'                     => isset($values['uid']) ? $values['uid'] : 1,
+    'language'                => 'und',
+    'body'                    => array('value' =>$values['body'], 'format' => "wysiwyg_contributor"),
+  ) + $values;
+
+
+  $entity = entity_property_values_create_entity('node', $values);
+  $entity->save();
+
+  $values['_nid'] = $entity->nid->value();
+  _smg_fake_content_mapping($key, $values['_nid']);
+  _smg_fake_content_do_import($values);
+  return $values['_nid'];
+}
+
+function smg_fake_content_create_node_smg_problem($values, $key) {
+
+  $values = array(
+    'type'                    => 'smg_problem',
+    'title'                   => $values['title'],
+    'uid'                     => isset($values['uid']) ? $values['uid'] : 1,
+    'language'                => 'und',
+    'body'                    => array('value' =>$values['body'], 'format' => "wysiwyg_contributor"),
+  ) + $values;
+
+  $entity = entity_property_values_create_entity('node', $values);
+
+  if (isset($values['theme'])) {
+    $entity->field_smg_themes->set(array(intval(_smg_fake_content_mapping($values['theme']))));
+  }
+  $entity->save();
+
+  $values['_nid'] = $entity->nid->value();
+  _smg_fake_content_mapping($key, $values['_nid']);
+  _smg_fake_content_do_import($values);
+  return $values['_nid'];
+}
+
+function smg_fake_content_create_node_smg_theme($values, $key) {
+
+  $new_values = array(
+    'type'                    => 'smg_theme',
+    'title'                   => $values['title'],
+    'uid'                     => isset($values['uid']) ? $values['uid'] : 1,
+    'language'                => 'und',
+    'body'                    => array('value' =>$values['body'], 'format' => "wysiwyg_contributor"),
+    'field_smg_theme_status'  => $values['status'],
+    'field_smg_teaser'        => array('value' =>$values['teaser'], 'format' => "wysiwyg_contributor"),
+  );
+  $entity = entity_property_values_create_entity('node', $new_values);
+  $entity->save();
+
+  $values['_nid'] = $entity->nid->value();
+  _smg_fake_content_mapping($key, $values['_nid']);
+  _smg_fake_content_do_import($values);
+  return $values['_nid'];
+}
+
+
+
+function smg_fake_content_create_node_blog($values, $key) {
+
+  $values = array(
+    'type'                    => 'blog',
+    'title'                   => $values['title'],
+    'uid'                     => isset($values['uid']) ? $values['uid'] : 1,
+    'language'                => 'und',
+    'body'                    => array('value' =>$values['body'], 'format' => "wysiwyg_contributor"),
+  ) + $values;
+
+
+  $entity = entity_property_values_create_entity('node', $values);
+  $entity->save();
+
+  $values['_nid'] = $entity->nid->value();
+  _smg_fake_content_mapping($key, $values['_nid']);
+  _smg_fake_content_do_import($values);
+  return $values['_nid'];
+}
+
+
+function smg_create_entity($values = array(), $debug = false) {
+  if (!isset($values['bundle'])) $values['bundle'] = $values['entity_type'];
+
+  $values = array(
+    'entity_type'   => $values['entity_type'],
+    'bundle'        => $values['bundle'],
+    'title'         => isset($values['title_tech']) ? $values['title_tech'] : '',
+    'uid'           => isset($values['uid']) ? $values['uid'] : 1,
+    'language'      => 'und',
+    // 'bundle'        => 'proposition_ask_subitem',
+  ) + $values;
+  $entity = entity_property_values_create_entity($values['entity_type'], $values);
+  $entity->type->set($values['entity_type']);
+  $entity->type->set($values['bundle']);
+
+
+  foreach ($values['fields'] as $field => $field_values) {
+    $entity->{$field}->set($field_values);
+  }
+  $entity->save();
+
+  if ($debug) echo "Entity with id " . $entity->id->value() . " of type " . $values['entity_type'] . " saved!\n";
+  return $entity;
+
+}
+
+function smg_fake_content_create_entity_smg_avis($values = array(), $key) {
+
+  $values += array(
+    'entity_type' => 'smg_avis',
+    'fields' => array(
+      'field_smg_proposition' => $values['_nid'],
+      // 'field_smg_avis_content' => array('value' => $values['value'], 'format' => 'wysiwyg_contributor'),
+      // 'field_smg_avis_type' => $values['avis_type'],
+    ),
+  );
+
+  $entity = smg_create_entity($values);
+  $values['_nid'] = $values['_nid'];
+  $values['_entity_id'] = $entity->id->value();
+  $values['_avis_id'] = $values['_entity_id'];
+  _smg_fake_content_mapping($key, $entity->id->value());
+  _smg_fake_content_do_import($values);
+  return $entity;
+}
+
+function smg_fake_content_create_entity_smg_avis_debat_item($values = array(), $key) {
+
+  // $values['_prop_id'] = _smg_fake_content_mapping($values['_prop_id']);
+  $values += array(
+    'bundle' => 'smg_avis_debat_item',
+    'entity_type' => 'smg_avis_subitem',
+    'fields' => array(
+      'field_smg_avis_subitem_item' => $values['_avis_id'],
+      // 'field_smg_avis_subitem_prop' => $values['_prop_id'],
+      // 'field_smg_avis_content' => array('value' => $values['body'], 'format' => 'wysiwyg_contributor'),
+      'field_smg_avis_content' => $values['body'],
+      'field_smg_avis_type' => $values['avis_type'],
+      'field_smg_avis_parent' => isset($values['parent']) && $values['parent'] ? _smg_fake_content_mapping($values['parent']) : null ,
+      'field_smg_proposition' => $values['_nid'],
+    ),
+  );
+
+  $entity = smg_create_entity($values);
+  $values['_nid'] = $values['_nid'];
+  $values['_entity_id'] = $entity->id->value();
+  _smg_fake_content_mapping($key, $entity->id->value());
+  _smg_fake_content_do_import($values);
+  return $entity;
+}
+

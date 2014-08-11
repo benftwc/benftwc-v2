@@ -1,0 +1,1 @@
+<?php print $page; // uses the page--modal.tpl ?>

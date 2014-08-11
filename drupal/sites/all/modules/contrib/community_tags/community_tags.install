@@ -1,0 +1,89 @@
+<?php
+
+/**
+ * @file
+ * The install file for the community_tags module.
+ */
+
+/**
+ * Implements hook_install().
+ */
+function community_tags_install() {
+  // Install schema
+  // TODO The drupal_(un)install_schema functions are called automatically in D7.
+  // drupal_install_schema('community_tags')
+
+  // D7 it appears that the weight setting is no longer necessary
+  // Drop module weight so we act after taxonomy.
+  // $weight = (int) db_query("SELECT weight FROM {system} WHERE name = :name", array(':name' => 'taxonomy'))->fetchField();
+  // TODO Please review the conversion of this statement to the D7 database API syntax.
+  /* db_query("UPDATE {system} SET weight = %d WHERE name = 'community_tags'", $weight + 1) */
+  // db_update('system')
+  // ->fields(array(
+  //   'weight' => $weight + 1,
+  // ))
+  // ->condition('name', 'community_tags')
+  // ->execute();
+}
+
+/**
+ * Implements hook_uninstall().
+ */
+function community_tags_uninstall() {
+  // TODO The drupal_(un)install_schema functions are called automatically in D7.
+  // drupal_uninstall_schema('community_tags')
+}
+
+/**
+ * Implements hook_schema().
+ */
+function community_tags_schema() {
+  $schema['community_tags'] = array(
+    'fields' => array(
+      'tid' => array(
+        'type' => 'int',
+        'unsigned' => TRUE,
+        'not null' => TRUE,
+        'default' => 0,
+      ),
+      'entity_type' => array(
+        'type' => 'varchar',
+        'length' => 32,
+        'not null' => TRUE,
+        'default' => ''
+      ),
+      'entity_id' => array(
+        'type' => 'int',
+        'unsigned' => TRUE,
+        'not null' => TRUE,
+        'default' => 0,
+      ),
+      'uid' => array(
+        'type' => 'int',
+        'unsigned' => TRUE,
+        'not null' => TRUE,
+        'default' => 0,
+      ),
+      'date' => array(
+        'type' => 'int',
+        'unsigned' => TRUE,
+        'not null' => TRUE,
+        'default' => 0,
+      ),
+    ),
+    'indexes' => array(
+      'tid' => array('tid'),
+      'nid' => array('entity_type', 'entity_id'),
+      'uid' => array('uid'),
+      'tid_nid' => array('tid', 'entity_type','entity_id'),
+    ),
+    'primary key' => array('tid', 'uid', 'entity_type', 'entity_id'),
+  );
+  return $schema;
+}
+
+/**
+ * Implements hook_enable().
+ */
+function community_tags_enable() { }
+

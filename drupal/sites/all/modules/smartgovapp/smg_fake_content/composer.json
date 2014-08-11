@@ -1,0 +1,8 @@
+{
+    "require": {
+        "symfony/yaml":  "2.0.14"
+    },
+    "config": {
+        "bin-dir": "bin"
+    }
+}

@@ -1,0 +1,15 @@
+name = mothership_twitter_bootstrap
+description = mothership BASE THEME on the twitter bootstrap
+engine = phptemplate
+core = 7.x
+php = 5.2
+
+stylesheets[all][] = css/style.css
+
+scripts[] = js/modernizr-2.0.6.min.js
+scripts[] = js/script.js
+
+base theme = mothership
+version = "7.x-1.12"
+core = "7.x"
+project = "Mothership Twitter bootstrap"

@@ -1,0 +1,12 @@
+name = SmartgovApp Voting module
+description = SmartgovApp Voting module
+core = 7.x
+package = SmartGovApp
+
+;dependencies[] = libraries
+;files[] = smg_voting.admin.inc
+;files[] = smg_voting.classes.inc
+;files[] = smg_voting.theme.inc
+;files[] = smg_voting.pages.inc
+files[] = includes/callback_smg_avis_empty_content.inc
+

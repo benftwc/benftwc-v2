@@ -1,0 +1,470 @@
+<?php
+
+function smg_voting_init() {
+  //TODO bast: add dependencies ? (ajax?)
+  drupal_add_js(drupal_get_path('module', 'smg_voting') . '/js/is_useful.js');
+}
+
+/**
+ * Implements hook_form_FORM_ID_alter().
+ *
+ * override is_useful widget to use a button up/down, and delete the field title
+ */
+function smg_voting_form_is_useful_exposed_formatter_alter(&$form, &$form_state) {
+  $form['is_useful']['#attached']['js'] = array(
+    drupal_get_path('module', 'smg_voting') . '/js/is_useful.js',
+  );
+  $form['is_useful']['#title'] = '';
+}
+
+
+function smg_voting_field_formatter_info() {
+  return array(
+    'smg_voting_formatter_default' => array(
+      'label' => t('SMG Default'),
+      'field types' => array('is_useful'),
+    ),
+    'smg_voting_formatter_small' => array(
+      'label' => t('SMG Small vote'),
+      'field types' => array('is_useful'),
+    ),
+  );
+}
+
+/**
+ * Implementation of hook_field_formatter_view().
+ */
+function smg_voting_field_formatter_view($entity_type, $entity, $field, $instance, $langcode, $items, $display) {
+
+  if (!user_is_logged_in() || false === variable_get('smg_is_contrib_open', true)) {
+    $option3 = $option1 = 0;
+    foreach ($items as $item) {
+      $var_name = str_replace('-', '', $item['function']);
+      ${$var_name} = $item['value'];
+    }
+    // $bar_down = $option1 + $option3 > 0 ? $option1 * 100 / ($option1 + $option3) : 0;
+    // $bar_up = $option1 + $option3 > 0 ? $option3 * 100 / ($option1 + $option3) : 0;
+    // $rate = '';
+    return array(array(
+      '#markup' => sprintf('
+      <div class="rate-button">
+      <a class="btn btn btn-success rate-votes-btn rate-votes-btn-up"><i class="icon cap-hand-like-2"></i>D\'accord</a><span class="rate-votes-num rate-votes-num-up">%d</span>
+      <a class="btn btn btn-danger rate-votes-btn rate-votes-btn-down"><i class="icon cap-hand-unlike-2"></i>Pas d\'accord</a><span class="rate-votes-num rate-votes-num-down">%d</span>
+      </div>', $option3, $option1)
+    ));
+
+  }
+
+  $element = array();
+  list($entity_id, $entity_vid, $bundle) = entity_extract_ids($entity_type, $entity);
+  $settings = array(
+    'entity_type' => $entity_type,
+    'entity_id' => $entity_id,
+    'axis' => $field['settings']['axis'],
+  );
+
+  $element[0] = drupal_get_form('is_useful_exposed_formatter', $settings);
+  return $element;
+}
+
+/**
+ * Implements hook_search_api_alter_callback_info().
+ */
+function smg_voting_search_api_alter_callback_info() {
+  $callbacks['search_api_alter_smg_avis_empty_content'] = array(
+    'name' => t('SMG Remove empty content'),
+    'description' => t('Exclude empty content'),
+    'class' => 'SearchApiAlterSmgAvisEmptyContent',
+    // Filters should be executed first.
+    'weight' => -8,
+  );
+
+  return $callbacks;
+}
+
+
+/**
+ * Implements hook_entity_property_info_alter().
+ *
+ * Add voting notes field for indexes
+ */
+function smg_voting_entity_property_info_alter(&$info) {
+
+  $info['smg_avis']['properties']['smg_nb_vote'] = array(
+    'type' => 'integer',
+    'label' => t('SMG Votes count'),
+    'sanitized' => TRUE,
+    'getter callback' => 'smg_voting_smg_nb_vote_getter_callback',
+  );
+  $info['smg_avis']['properties']['smg_moy_vote'] = array(
+    'type' => 'integer',
+    'label' => t('SMG Votes moyenne'),
+    'sanitized' => TRUE,
+    'getter callback' => 'smg_voting_smg_moy_vote_getter_callback',
+  );
+
+
+  $info['smg_avis_subitem']['properties']['smg_ref'] = array(
+    'type' => 'text',
+    'label' => t('SMG avis subitem ref'),
+    'sanitized' => TRUE,
+    'getter callback' => 'smg_voting_smg_ref_callback',
+    'options list' => 'smg_voting_smg_ref_options_list'
+  );
+  $info['smg_avis_subitem']['properties']['smg_prop_id'] = array(
+    'type' => 'integer',
+    'label' => t('SMG avis proposition id'),
+    'sanitized' => TRUE,
+    'getter callback' => 'smg_voting_smg_prop_id_callback',
+  );
+  $info['smg_avis_subitem']['properties']['smg_moy_vote'] = array(
+    'type' => 'integer',
+    'label' => t('SMG Votes moyenne'),
+    'sanitized' => TRUE,
+    'getter callback' => 'smg_voting_smg_subavis_moy_vote_getter_callback',
+  );
+  $info['smg_avis_subitem']['properties']['smg_community_tags'] = array(
+    'type' => 'list<integer>',
+    'label' => t('SMG community tags'),
+    'sanitized' => TRUE,
+    'getter callback' => 'smg_voting_smg_subavis_community_tags_getter_callback',
+    'options list' => 'smg_voting_smg_subavis_community_tags_list_callback',
+  );
+  $info['smg_avis_subitem']['properties']['smg_flag_pb_moderation_status'] = array(
+    'type' => 'text',
+    'label' => t('Status de modération'),
+    'sanitized' => TRUE,
+    'getter callback' => 'smg_voting_smg_flag_pb_moderation_status_entity_callback',
+  );
+
+  $info['smg_source']['properties']['smg_nb_vote'] = array(
+    'type' => 'integer',
+    'label' => t('SMG Votes count'),
+    'sanitized' => TRUE,
+    'getter callback' => 'smg_voting_smg_nb_vote_getter_callback',
+  );
+  $info['smg_source']['properties']['smg_moy_vote'] = array(
+    'type' => 'integer',
+    'label' => t('SMG Votes moyenne'),
+    'sanitized' => TRUE,
+    'getter callback' => 'smg_voting_smg_moy_vote_getter_callback',
+  );
+
+  $info['user']['properties']['smg_user_access_date'] = array(
+    'type' => 'integer',
+    'label' => t('SMG user last access date'),
+    'sanitized' => TRUE,
+    'getter callback' => 'smg_voting_smg_user_access_date_getter_callback',
+  );
+  $info['user']['properties']['smg_enquete_participation'] = array(
+    'type' => 'integer',
+    'label' => t('SMG user all participation'),
+    'sanitized' => TRUE,
+    'getter callback' => 'smg_voting_smg_enquete_participation_getter_callback',
+  );
+
+  // node smg_problem
+  $info['node']['properties']['smg_flag_pb_concerned_count'] = array(
+    'type' => 'integer',
+    'label' => t('Nombre de personnes concernées'),
+    'sanitized' => TRUE,
+    'getter callback' => 'smg_voting_smg_flag_pb_concerned_count_callback',
+  );
+  $info['node']['properties']['smg_flag_pb_debat_count'] = array(
+    'type' => 'integer',
+    'label' => t('Nombre de votes'),
+    'sanitized' => TRUE,
+    'getter callback' => 'smg_voting_smg_flag_pb_debat_count_callback',
+  );
+  $info['node']['properties']['smg_flag_pb_moderation_status'] = array(
+    'type' => 'text',
+    'label' => t('Status de modération'),
+    'sanitized' => TRUE,
+    'getter callback' => 'smg_voting_smg_flag_pb_moderation_status_callback',
+  );
+
+  // node smg_debat
+  $info['node']['properties']['smg_debat_nb_contributeurs'] = array(
+    'type' => 'integer',
+    'label' => t('Nombre de contributeurs'),
+    'sanitized' => TRUE,
+    'getter callback' => 'smg_voting_smg_debat_nb_contributeurs_callback',
+  );
+  $info['node']['properties']['smg_debat_nb_contributions'] = array(
+    'type' => 'integer',
+    'label' => t('Nombre de contributions'),
+    'sanitized' => TRUE,
+    'getter callback' => 'smg_voting_smg_debat_nb_contributions_callback',
+  );
+}
+
+/**
+ * Getter callback for avis rates count
+ */
+function smg_voting_smg_nb_vote_getter_callback($item) {
+  $rates = _cc_content_get_avis_subitems($item->id);
+  return $rates['count_useful'] + $rates['count_not_useful'];
+}
+function smg_voting_smg_moy_vote_getter_callback($item) {
+  $rates = _cc_content_get_avis_subitems($item->id);
+  return $rates['count_useful'] - $rates['count_not_useful'];
+}
+
+/**
+ * Getter callback for subavis fields
+ */
+function smg_voting_smg_ref_callback($item) {
+  if ($item->type == 'smg_avis_subitem') {
+    return 'avis-' . $item->field_smg_avis_subitem_prop['und'][0]['target_id']; // todo use the shortname
+  }
+  if ($item->type == 'smg_avis_new_solution') {
+    return 'new-solution';
+  }
+  if ($item->type == 'smg_avis_new_proposition_item') {
+    if (isset($item->field_smg_avis_subitem_prop['und'][0]['target_id'])) {
+      return 'new-' . $item->field_proposition_item_type['und'][0]['value'] . '-' . strval($item->field_smg_avis_subitem_prop['und'][0]['target_id']);
+    }
+    return 'new-' . $item->field_proposition_item_type['und'][0]['value'];
+  }
+
+  return false;
+}
+
+function smg_voting_smg_ref_options_list($item) {
+  static $options, $loaded;
+
+  if (strpos($_GET['q'], 'node/') === FALSE) {
+    return;
+  }
+  $loaded = true;
+
+  if (!isset($options) && !isset($loaded) && $node = menu_get_object() && isset($node->nid)) {
+    $key_cache = sprintf('smg-avis-ref-options-%d', $node->nid); // TODO change that
+    if ($cache = cache_get($key_cache, 'cache')) {
+      $options = $cache->data;
+    }
+    else {
+      $options = array(
+        'new-probleme-enjeu' => 'Nouvel enjeu',
+        'new-probleme-cause' => 'Nouvelle cause',
+        'new-solution' => 'Nouvelle solution'
+      );
+
+      if ($node->nid) {
+
+        // get all subitems
+        $query = new \EntityFieldQuery();
+        $query
+          ->entityCondition('entity_type', 'proposition_item')
+          ->entityCondition('bundle', 'proposition_item')
+          ->fieldCondition('field_proposition_item_node', 'target_id', intval($node->nid), '=')
+          ;
+
+        $result = $query->execute();
+
+        if (isset($result['proposition_item'])) {
+
+          $entities = entity_load('proposition_item', array_keys($result['proposition_item']));
+          foreach ($entities as $entity) {
+            $options['avis-' . $entity->id] = $entity->label;
+
+            if ($entity->smg_type == 'solution') {
+              $options['new-solution-moyen-' . $entity->id] = $entity->label . ' – Nouveau moyen';
+              $options['new-solution-resultat-' . $entity->id] = $entity->label . ' – Nouveau résultat';
+            }
+          }
+        }
+
+        cache_set($key_cache, $options, 'cache', time() + 60*60);
+      }
+    }
+  }
+
+  return $options;
+}
+
+function smg_voting_smg_prop_id_callback($item) {
+  if ($item->type == 'smg_avis_subitem') {
+    $avis_id = $item->field_smg_avis_subitem_item['und'][0]['target_id'];
+    $avis = entity_load('smg_avis', array($avis_id))[$avis_id];
+    return $avis->field_smg_proposition['und'][0]['target_id'];
+  }
+  if (isset($item->field_smg_proposition['und'][0]['target_id'])) {
+    return $item->field_smg_proposition['und'][0]['target_id'];
+  }
+
+  return false;
+}
+
+function smg_voting_smg_subavis_moy_vote_getter_callback($item) {
+  $results = db_query('SELECT value FROM {votingapi_cache} WHERE entity_id = :id AND entity_type = :type AND function = :function', array(':id' => $item->id, ':type' => 'smg_avis_subitem', ':function' => 'option-3'));
+  $count_useful = intval($results->fetchField());
+  $results = db_query('SELECT value FROM {votingapi_cache} WHERE entity_id = :id AND entity_type = :type AND function = :function', array(':id' => $item->id, ':type' => 'smg_avis_subitem', ':function' => 'option-1'));
+  $count_not_useful = intval($results->fetchField());
+  return $count_useful - $count_not_useful;
+}
+
+function smg_voting_smg_subavis_community_tags_getter_callback($item) {
+  if (!$item) return false;
+  $uid = 5; // TODO Claire de Chessé
+  $entity_type = "smg_avis_subitem"; // TODO
+  $vids = db_query("select field_smg_moderation_vocabulary_target_id from {field_data_field_smg_moderation_vocabulary} where 1")->fetchCol();
+  $tags = community_tags_get_user_entity_tags($uid, $entity_type, $item->id, $vids);
+  $return = array();
+
+  foreach ($tags as $tag) {
+    $return[$tag->tid] = $tag->tid; //htmlspecialchars($tag->name, ENT_QUOTES);
+    $parents = taxonomy_get_parents_all($tag->tid);
+    foreach($parents as $parent) {
+      $return[$parent->tid] = $parent->tid;
+    }
+  }
+  if (count($return) == 0) {
+    $return[0] = 0;
+  }
+
+  return $return;
+}
+function smg_voting_smg_subavis_community_tags_list_callback($item) {
+  $uid = 5; // TODO Claire de Chessé
+  $return = array(0 => 'aucun tag');
+
+  $tags_query = _community_tags_get_tag_result('user', 1000, $uid);
+  $tags = $tags_query->fetchAllAssoc('tid');
+
+  foreach ($tags as $tag) {
+    $return[$tag->tid] = $tag->name;
+  }
+
+  return $return;
+}
+
+
+function smg_voting_smg_user_access_date_getter_callback($item) {
+  $date = $item->access;
+  return $date === 0 ? null : date('Y-m-d H:i:s', $date);
+}
+function smg_voting_smg_enquete_participation_getter_callback($item) {
+  $participations = (db_query("select prop.`field_smg_proposition_target_id` as prop_id,
+    (
+      select prop2.`field_smg_proposition_target_id` as prop2_id
+      from {eck_smg_avis_subitem sub2
+      inner join {field_data_field_smg_avis_subitem_item} avis2 on sub2.id = avis2.entity_id
+      inner join {field_data_field_smg_proposition} prop2 on prop2.entity_id = avis2.field_smg_avis_subitem_item_target_id
+      left join {field_data_field_smg_avis_subitem_value} sub_content2 on sub2.id = sub_content2.entity_id
+      left join {field_data_field_smg_avis_content} content2 on sub2.id = content2.entity_id
+      where
+      prop2.`entity_type` = 'smg_avis'
+      and prop2.`field_smg_proposition_target_id` = prop.`field_smg_proposition_target_id`
+
+      and sub2.`uid` = sub.`uid`
+      and (
+        trim(coalesce(sub_content2.field_smg_avis_subitem_value_value, '')) <> ''
+        OR
+        trim(coalesce(content2.field_smg_avis_content_value, '')) <> ''
+      )
+      group by prop2.`field_smg_proposition_target_id`
+    ) as content
+    from {eck_smg_avis_subitem} sub
+    inner join {field_data_field_smg_avis_subitem_item} avis on sub.id = avis.entity_id
+    inner join {field_data_field_smg_proposition} prop on prop.entity_id = avis.field_smg_avis_subitem_item_target_id
+    where
+    prop.`entity_type` = 'smg_avis'
+    and sub.`uid` = :uid
+    group by prop.`field_smg_proposition_target_id`", array(':uid' => $item->uid)));
+
+  $values = array();
+
+  // TODO use a cache of dynamic array
+  $enquetes = array(67 => 'lemaire-confiance', 72 => 'raimbourg-prison', 93  => 'labbe-pesticide');
+  foreach ($participations as $participation) {
+    $values[] .= $enquetes[$participation->prop_id] . (is_null($participation->content) ? '' : '-txt') ;
+  }
+
+  return implode(',', $values);
+}
+
+/**
+ * Getter callback for problem flags count
+ */
+function smg_voting_smg_flag_pb_concerned_count_callback($item) {
+  $results = db_query('SELECT count FROM {flag_counts} WHERE entity_id = :id AND entity_type = :type AND fid = :fid', array(':id' => $item->nid, ':type' => 'node', ':fid' => flag_get_flag('smg_problem_concerned')->fid));
+  $count = intval($results->fetchField());
+  return $count;
+}
+function smg_voting_smg_flag_pb_debat_count_callback($item) {
+  $results = db_query('SELECT value FROM {votingapi_cache} WHERE entity_id = :id AND entity_type = :type AND function = :function', array(':id' => $item->nid, ':type' => 'node', ':function' => 'option-3'));
+  $count_useful = intval($results->fetchField());
+  $results = db_query('SELECT value FROM {votingapi_cache} WHERE entity_id = :id AND entity_type = :type AND function = :function', array(':id' => $item->nid, ':type' => 'node', ':function' => 'option-1'));
+  $count_not_useful = intval($results->fetchField());
+  return $count_useful + $count_not_useful;
+  // $results = db_query('SELECT count FROM {flag_counts} WHERE entity_id = :id AND entity_type = :type AND fid = :fid', array(':id' => $item->nid, ':type' => 'node', ':fid' => flag_get_flag('problem_in_debat')->fid));
+  // $count = intval($results->fetchField());
+  // return $count;
+}
+function smg_voting_smg_flag_pb_moderation_status_callback($item) {
+  $flag = flag_get_flag('smg_trash_node');
+  if ($flag_entity = $flag->get_flagging_record($item->nid)) {
+    $entities = entity_load('flagging', array($flag_entity->flagging_id));
+
+    return $entities[$flag_entity->flagging_id]->field_field_smg_moderation_type['und'][0]['value'];
+  }
+
+  return '';
+}
+function smg_voting_smg_flag_pb_moderation_status_entity_callback($item) {
+  $flag = flag_get_flag('smg_trash_entity');
+  if ($flag_entity = $flag->get_flagging_record($item->id)) {
+    $entities = entity_load('flagging', array($flag_entity->flagging_id));
+
+    return $entities[$flag_entity->flagging_id]->field_field_smg_moderation_type['und'][0]['value'];
+  }
+
+  return '';
+}
+
+/**
+ * Getter callback for debat counts
+ */
+function smg_voting_smg_debat_nb_contributions_callback($item) {
+  // return count(views_get_view_result('proposition_subavis', 'block_3', $item->nid));
+  return (db_query("
+    select count(distinct(sub.uid))
+    from {eck_smg_avis_subitem} sub
+    inner join {field_data_field_smg_proposition} prop on prop.entity_id = sub.id
+    where
+    prop.`entity_type` = 'smg_avis_subitem'
+    and prop.`field_smg_proposition_target_id` = " . $item->nid)->fetchField());
+
+}
+function smg_voting_smg_debat_nb_contributeurs_callback($item) {
+  return (db_query("
+    select count(distinct(sub.id))
+    from {eck_smg_avis_subitem} sub
+    inner join {field_data_field_smg_proposition} prop on prop.entity_id = sub.id
+    where
+    prop.`entity_type` = 'smg_avis_subitem'
+    and prop.`field_smg_proposition_target_id` = " . $item->nid)->fetchField());
+}
+
+
+
+/**
+ * Implements hook_votingapi_insert().
+ *
+ * TODO bast: asynchrone!
+ * TODO bast: event trop large !
+ */
+function smg_voting_votingapi_insert($votes) {
+  foreach ($votes as $vote) {
+    if ($vote['entity_type'] == 'node') {
+      rules_invoke_event('node_update', $vote['entity_id']);
+    }
+    else {
+      rules_invoke_event('smg_avis_subitem_update', $vote['entity_id']);
+    }
+  }
+}
+
+
+
